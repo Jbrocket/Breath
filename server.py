@@ -31,10 +31,10 @@ class GameServer:
             if(payload["method"] == "connect"):
                 print(payload["args"]["username"]);
                 response = None;
-                if(False):
+                #if(payload["args"]["username"] not in self.user_listAAAAA):
+                if(True):
                     # Do some authentication or something here! 
-
-                    user_list.append({"username": payload["args"]["username"], "status": "loading", "address": addr});
+                    self.user_list.append({"username": payload["args"]["username"], "status": "loading", "address": addr, "last_heard_from": time.time()});
 
                     response = {"method": "accept_connection", "args": None};
                 else:
@@ -54,6 +54,8 @@ class GameServer:
             else:
                 print("error", payload);
 
+
+            print(self.user_list);
             
 
 

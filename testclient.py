@@ -2,6 +2,8 @@ import socket, sys, json;
 
 
 sock = socket.socket(type=socket.SOCK_DGRAM);
+sock.settimeout(1);
+sock.bind(("", 4243));
 payload = {"method": sys.argv[1], "args": {"username": sys.argv[2]}};
 msg = f"{len(json.dumps(payload)):>16}{json.dumps(payload)}";
 sock.sendto(msg.encode(), ('localhost', 6969));
