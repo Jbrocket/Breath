@@ -32,7 +32,8 @@ class GameServer:
                     # Do some authentication or something here! 
                     self.user_list[payload["args"]["username"]] = {"status": "loading", "address": addr, "last_heard_from": time.time(), "position": {"x": 0, "y": 0}};
 
-                    response = {"method": "accept_connection", "args": None};
+                    #response = {"method": "accept_connection", "args": None};
+                    response = {"x": 0, "y": 0};
                 else:
                     response = {"method": "reject_connection", "args": None};
 
