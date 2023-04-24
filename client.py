@@ -2,6 +2,7 @@ import pygame
 import sys 
 import socket
 import json
+from threading import Thread
 
 import megalib
 
@@ -39,16 +40,36 @@ class ClientSocket:
         data = json.loads(data.decode())
         return megalib.Player(name=name, x=data['x'], y=data['y'])
     
-    def recv_mesg(self):
-        data, addr = self.send_socket.recvfrom(65536)
-        data = json.loads(data.decode())
-        return data['x'], data['y']
+    def recv_mesg(self, game_state: dict):
         
-    def send_data(self, move, name):
+        self.send_socket.settimeout(0.02)
+        while True:
+            try:
+                data, addr = self.send_socket.recvfrom(65536)
+                data = json.loads(data.decode())
+                game_state['me'].x, game_state['me'].y = data['x'], data['y']
+            except socket.timeout as e:
+                pass
+        return
+        
+    def send_data(self, move, game_state):
+        name = game_state['me'].name
         msg = json.dumps({"method": "send_player_update", "args": {"username": name, "input": move}})
         msg = f"{len(msg.encode()):>16}{msg}"
         self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
-        return self.recv_mesg()
+        if(move == "up"):
+            game_state['me'].y += 1
+        elif(move == "down"):
+            game_state['me'].y -= 1
+        elif(move == "left"):
+            game_state['me'].x -= 1
+        elif(move == "right"):
+            game_state['me'].x += 1
+        
+        return None
+    
+def render_map(game_state: dict):
+    return
         
 def get_host_and_client():
     color = (255,255,255) 
@@ -143,22 +164,45 @@ def in_game_loop(client: ClientSocket, me: megalib.Player):
     # player_image = player_image.get_rect()
     
     player_image = pygame.transform.rotozoom(player_image, 0, 1/5)
+    mov_types = {"up": False, "down": False, "left": False, "right": False}
+    
+    game_state = {'me': me, 'tanks': [], 'players': []}
+    t = Thread(target=client.recv_mesg, daemon=True, args=[game_state])
+    t.start()
     
     while True:
         screen.fill((255,255,255))
+        render_map(game_state)
+        
         for ev in pygame.event.get(): 
             if ev.type == pygame.QUIT:
                 pygame.quit()
             if ev.type == pygame.KEYDOWN:
                 if ev.unicode == "w":
-                    me.x, me.y = client.send_data("up", me.name)
+                    mov_types['down'] = True
                 elif ev.unicode == "a":
-                    me.x, me.y = client.send_data("left", me.name)
+                    mov_types['left'] = True
                 elif ev.unicode == "s":
-                    me.x, me.y = client.send_data("down", me.name)
+                    mov_types['up'] = True
                 elif ev.unicode == "d":
-                    me.x, me.y = client.send_data("right", me.name)
-        screen.blit(player_image, (me.x, me.y))
+                    mov_types['right'] = True
+            if ev.type == pygame.KEYUP:
+                if ev.unicode == "w":
+                    mov_types['down'] = False
+                elif ev.unicode == "a":
+                    mov_types['left'] = False
+                elif ev.unicode == "s":
+                    mov_types['up'] = False
+                elif ev.unicode == "d":
+                    mov_types['right'] = False
+                    
+        for mov in mov_types:
+            if mov_types[mov]: 
+                client.send_data(mov, game_state)
+                
+                # client.recv_mesg(game_state=game_state)
+            
+        screen.blit(player_image, (game_state['me'].x, game_state['me'].y))
         clock.tick(60)
         pygame.display.update()
 

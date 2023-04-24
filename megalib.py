@@ -30,6 +30,10 @@ class Player:
     def move_left(self):
         self.y -= 1
 
+class Map:
+    def __init__(self):
+        self.data = [[]]
+
 class O2Tanks:
     def __init__(self):
         self.O2_tanks = list()
