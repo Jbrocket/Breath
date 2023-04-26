@@ -19,16 +19,16 @@ class Player:
         self.O2_level += 20 if self.O2_level + 20 <= 100 else 100
         
     def move_up(self):
-        self.y += 1
+        self.y += 5
         
     def move_down(self):
-        self.y -= 1
+        self.y -= 5
         
     def move_right(self):
-        self.x += 1
+        self.x += 5
         
     def move_left(self):
-        self.y -= 1
+        self.y -= 5
 
 class Map:
     def __init__(self):

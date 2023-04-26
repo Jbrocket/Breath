@@ -62,13 +62,13 @@ class ClientSocket:
         msg = f"{len(msg.encode()):>16}{msg}"
         self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
         if(move == "up"):
-            game_state['me'].y += 5
+            game_state['me'].move_up()
         elif(move == "down"):
-            game_state['me'].y -= 5
+            game_state['me'].move_down()
         elif(move == "left"):
-            game_state['me'].x -= 5
+            game_state['me'].move_left()
         elif(move == "right"):
-            game_state['me'].x += 5
+            game_state['me'].move_right()
         
         return None
     
@@ -116,6 +116,7 @@ def get_host_and_client():
                         me = client.connect(server, port, name=name)
                         connected = True
             if ev.type == pygame.KEYDOWN:
+                key_pressed = pygame.key.get_pressed()
                 if ev.key == pygame.K_BACKSPACE:
                     if option == 1:
                         server = server[:-1]
@@ -123,13 +124,16 @@ def get_host_and_client():
                         port = port[:-1]
                     elif option == 3:
                         name = name[:-1]
-                elif ev.unicode == "1":
-                    option = 1
-                elif ev.unicode == "2":
-                    option = 2
-                elif ev.unicode == "3":
-                    option = 3
+                elif key_pressed[pygame.K_UP]:
+                    option -= 1
+                elif key_pressed[pygame.K_DOWN]:
+                    option += 1
                 else:
+                    if option > 3:
+                        option = 3
+                    if option < 1:
+                        option = 1
+                        
                     if option == 1:
                         server += ev.unicode
                     elif option == 2:

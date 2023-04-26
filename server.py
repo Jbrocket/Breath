@@ -10,8 +10,11 @@ class GameServer:
 
     def start_server(self):
 
+        host_name = socket.gethostname()
+        ip_address = socket.gethostbyname(host_name)
         self.sock = socket.socket(type=socket.SOCK_DGRAM);
-        self.sock.bind(("", self.port_no));
+        self.sock.bind((ip_address, self.port_no));
+        print(f"Listening on port {self.sock.getsockname()[1]}, on address {ip_address}")
 
 
         # Begin timer thread now
@@ -89,5 +92,5 @@ class GameServer:
 
 
 if __name__ == "__main__":
-    crap = GameServer(6969);
-    crap.start_server(); 
+    server = GameServer(6969);
+    server.start_server(); 
