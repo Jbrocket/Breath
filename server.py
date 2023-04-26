@@ -7,6 +7,12 @@ class GameServer:
         self.port_no = port_no;
         self.user_list = collections.defaultdict(lambda: None);
         self.buffer = {"players": {}, "tanks": {}}
+        self.map_x = 4950; # /50 = 99
+        self.map_y = 2880; # /48 = 60
+        self.tank_list = megalib.O2Tanks();
+        self.tank_list.create_tanks(3);
+        print(self.tank_list.O2_tanks);
+
     
 
     def update_players(self):
