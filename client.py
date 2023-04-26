@@ -43,17 +43,19 @@ class ClientSocket:
         data, addr = self.send_socket.recvfrom(65536)
         data = data[16:]
         data = json.loads(data.decode())
+        if data["status"] == "reject":
+            return None
         return megalib.Player(name=name, x=data['x'], y=data['y'])
     
     def recv_mesg(self, game_state: dict):
         
-        self.send_socket.settimeout(0.02)
         while True:
             try:
                 data, addr = self.send_socket.recvfrom(65536)
                 data = json.loads(data.decode())
                 game_state['me'].x, game_state['me'].y = data['x'], data['y']
-            except socket.timeout as e:
+            except (socket.timeout, KeyError, IndexError) as e:
+                print(data)
                 pass
         return
         
@@ -115,6 +117,8 @@ def get_host_and_client():
                 if not connected:
                     if width/2 <= mouse[0] <= width/2+140 and height/2 <= mouse[1] <= height/2+40: 
                         me = client.connect(server, port, name=name)
+                        if not me:
+                            continue
                         connected = True
             if ev.type == pygame.KEYDOWN:
                 key_pressed = pygame.key.get_pressed()
@@ -237,13 +241,13 @@ def in_game_loop(client: ClientSocket, me: megalib.Player):
                 # client.recv_mesg(game_state=game_state)
         
         if (game_state['me'].x + camera_x) >  width/2 + 30:
-            camera_x -= 5
+            camera_x -= (game_state['me'].x + camera_x) - (width/2 + 30)
         if (game_state['me'].x + camera_x) < width/2 - 100:
-            camera_x += 5
+            camera_x += -(game_state['me'].x + camera_x) + (width/2 - 100)
         if (game_state['me'].y + camera_y) > height/2 + 30:
-            camera_y -= 5
+            camera_y -= (game_state['me'].y + camera_y) - (height/2 + 30)
         if (game_state['me'].y + camera_y) < height/2 - 100:
-            camera_y += 5
+            camera_y += -(game_state['me'].y + camera_y) + (height/2 - 100)
         
         display_characters(game_state=game_state)
         clock.tick(60)

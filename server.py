@@ -1,14 +1,25 @@
-import socket, json, time, threading;
+import socket, json, time, threading, collections;
 import megalib
 
 class GameServer:
 
     def __init__(self, port_no):
         self.port_no = port_no;
-        self.user_list = {};
+        self.user_list = collections.defaultdict(lambda: None);
         self.buffer = {}
     
 
+    def update_players(self):
+        while True:
+            user: megalib.Player
+            for user in self.user_list:
+                self.sock.sendto(json.dumps(list(self.buffer.items())), self.user_list[user].ip_address)
+                print(json.dumps(list(self.buffer.items())))
+                pass
+            time.sleep(0.0083)
+            self.buffer = {}
+        
+        return
 
     def start_server(self):
 
@@ -20,7 +31,9 @@ class GameServer:
 
 
         # Begin timer thread now
-
+        t = threading.Thread(target=self.update_players, daemon=True)
+        t.start()
+        
         while(True):
             msg, addr = self.sock.recvfrom(64000);
             size = int(msg.decode()[0:16]);
@@ -30,22 +43,23 @@ class GameServer:
 
 
             if(payload["method"] == "connect"):
-                print(payload["args"]["username"]);
+                # print(payload["args"]["username"]);
                 response = None;
                 #if(payload["args"]["username"] not in self.user_listAAAAA):
-                if(True):
+                if(not self.user_list[payload["args"]["username"]]):
                     # Do some authentication or something here! 
                     new_user = megalib.Player(payload["args"]["username"])
                     new_user.last_heard_from = time.time()
-                    new_user.x = 500
-                    new_user.y = 500
+                    new_user.x = 2255
+                    new_user.y = 365
                     new_user.status = "loaded"
+                    new_user.ip_address = addr
                     self.user_list[new_user.name] = new_user;
 
                     #response = {"method": "accept_connection", "args": None};
-                    response = {"x": new_user.x, "y": new_user.y};
+                    response = {"status": "accept", "x": new_user.x, "y": new_user.y};
                 else:
-                    response = {"method": "reject_connection", "args": None};
+                    response = {"status": "reject", "args": {"reason": "duplicate name"}};
 
                 self.sock.sendto(f"{len(json.dumps(response)):>16}{json.dumps(response)}".encode(), addr);
 
@@ -67,7 +81,7 @@ class GameServer:
                 print("error", payload);
 
 
-            print(self.user_list);
+            # print(self.user_list);
             
 
 
@@ -79,7 +93,7 @@ class GameServer:
             self.user_list[username].x = args["x"]
             self.user_list[username].y = args["y"]
             
-            print(self.user_list[username]["position"]);
+            self.buffer[username] = {"user": self.user_list[username], "x": self.user_list[username].x, "y": self.user_list[username].y}
         except:
             pass;
 
