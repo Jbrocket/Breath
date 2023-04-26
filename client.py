@@ -1,11 +1,11 @@
 import pygame 
-import sys 
 import socket
 import json
 from threading import Thread
 import collections
+import time
 
-import megalib
+from src import megalib
 
 global width
 global height
@@ -59,25 +59,20 @@ class ClientSocket:
     def recv_mesg(self, game_state: dict):
         
         while True:
-            try:
-                data, addr = self.send_socket.recvfrom(65536)
-                data = json.loads(data.decode())
-                if data['players']:
-                    print(data)
-                    for player, info in data['players'].items():
-                        if player == game_state['me'].name:
-                            game_state['me'].x, game_state['me'].y = info['x'], info['y']
-                            print("update me")
+            data, addr = self.send_socket.recvfrom(65536)
+            data = json.loads(data.decode())
+            if data['players']:
+                for player, info in data['players'].items():
+                    if player == game_state['me'].name:
+                        game_state['me'].x, game_state['me'].y = info['x'], info['y']
+                    else:
+                        if not game_state['players'][player]:
+                            game_state['players'][player] = megalib.Player(name=player, x=info['x'], y=info['x'])
                         else:
-                            if not game_state['players'][player]:
-                                print("new guy")
-                                game_state['players'][player] = megalib.Player(name=player, x=info['x'], y=info['x'])
-                            else:
-                                game_state['players'][player].x, game_state['players'][player].y = info['x'], info['y']
-                if data['tanks']:
-                    pass
-            except (socket.timeout, KeyError, IndexError) as e:
+                            game_state['players'][player].x, game_state['players'][player].y = info['x'], info['y']
+            if data['tanks']:
                 pass
+            time.sleep(0.0083)
         return
         
     def send_data(self, move, game_state):
@@ -213,10 +208,10 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
     global camera_y
     global offset
         
-    game_state['background'] = pygame.image.load("among-us-map.jpg").convert_alpha()
+    game_state['background'] = pygame.image.load("./src/among-us-map.jpg").convert_alpha()
     game_state['background'] = pygame.transform.rotozoom(game_state['background'], 0, 3.5)
     clock = pygame.time.Clock()
-    player_image = pygame.image.load("among_us.png").convert_alpha()
+    player_image = pygame.image.load("./src/among_us.png").convert_alpha()
     player_image.set_colorkey((0, 0, 0))
     # player_image = player_image.get_rect()
     
@@ -277,7 +272,7 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
 
 def main():
     pygame.init()
-    res = (600,500) 
+    res = (1000, 720) 
 
     global width
     global height

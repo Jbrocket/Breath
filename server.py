@@ -1,5 +1,5 @@
 import socket, json, time, threading, collections;
-import megalib
+from src import megalib
 
 class GameServer:
 
