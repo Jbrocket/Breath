@@ -68,13 +68,13 @@ class GameServer:
             username = args["username"];
             input_val = args["input"];
             if(input_val == "up"):
-                self.user_list[username]["position"]["y"] += 1;
+                self.user_list[username]["position"]["y"] += 5;
             elif(input_val == "down"):
-                self.user_list[username]["position"]["y"] -= 1;
+                self.user_list[username]["position"]["y"] -= 5;
             elif(input_val == "left"):
-                self.user_list[username]["position"]["x"] -= 1;
+                self.user_list[username]["position"]["x"] -= 5;
             elif(input_val == "right"):
-                self.user_list[username]["position"]["x"] += 1;
+                self.user_list[username]["position"]["x"] += 5;
             print(self.user_list[username]["position"]);
         except:
             pass;

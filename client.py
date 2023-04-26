@@ -9,6 +9,10 @@ import megalib
 global width
 global height
 global screen
+global player_image
+global camera_x
+global camera_y
+global offset
   
 class ClientSocket:
     
@@ -58,17 +62,30 @@ class ClientSocket:
         msg = f"{len(msg.encode()):>16}{msg}"
         self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
         if(move == "up"):
-            game_state['me'].y += 1
+            game_state['me'].y += 5
         elif(move == "down"):
-            game_state['me'].y -= 1
+            game_state['me'].y -= 5
         elif(move == "left"):
-            game_state['me'].x -= 1
+            game_state['me'].x -= 5
         elif(move == "right"):
-            game_state['me'].x += 1
+            game_state['me'].x += 5
         
         return None
     
 def render_map(game_state: dict):
+    screen.blit(game_state['background'], (camera_x - width/2 - offset , camera_y - height/2 - offset))
+    return
+
+def display_characters(game_state: dict):
+    smallfont = pygame.font.SysFont('Corbel',35)
+    ### ME
+    screen.blit(smallfont.render(game_state['me'].name, True, (100,100,100)), (game_state['me'].x + camera_x + 25, game_state['me'].y + camera_y - 10))
+    screen.blit(player_image, (game_state['me'].x + camera_x, game_state['me'].y + camera_y))
+    
+    for player in game_state['players']:
+        screen.blit(smallfont.render(player.name, True, (100,100,100)), (player.y + camera_x + 25, player.y + camera_y - 10))
+        screen.blit(player_image, (player.x + camera_x, player.y + camera_y))
+    
     return
         
 def get_host_and_client():
@@ -157,7 +174,16 @@ def get_host_and_client():
         
     in_game_loop(client, me)
     
+    
 def in_game_loop(client: ClientSocket, me: megalib.Player):
+    global player_image
+    global camera_x
+    global camera_y
+    global offset
+        
+    game_state = {'me': me, 'tanks': [], 'players': []}
+    game_state['background'] = pygame.image.load("among-us-map.jpg").convert_alpha()
+    game_state['background'] = pygame.transform.rotozoom(game_state['background'], 0, 3.5)
     clock = pygame.time.Clock()
     player_image = pygame.image.load("among_us.png").convert_alpha()
     player_image.set_colorkey((0, 0, 0))
@@ -166,9 +192,12 @@ def in_game_loop(client: ClientSocket, me: megalib.Player):
     player_image = pygame.transform.rotozoom(player_image, 0, 1/5)
     mov_types = {"up": False, "down": False, "left": False, "right": False}
     
-    game_state = {'me': me, 'tanks': [], 'players': []}
     t = Thread(target=client.recv_mesg, daemon=True, args=[game_state])
     t.start()
+    
+    offset = - 50
+    camera_x = width / 2  + offset
+    camera_y = height / 2 + offset
     
     while True:
         screen.fill((255,255,255))
@@ -201,8 +230,17 @@ def in_game_loop(client: ClientSocket, me: megalib.Player):
                 client.send_data(mov, game_state)
                 
                 # client.recv_mesg(game_state=game_state)
-            
-        screen.blit(player_image, (game_state['me'].x, game_state['me'].y))
+        
+        if (game_state['me'].x + camera_x) >  width/2 + 30:
+            camera_x -= 5
+        if (game_state['me'].x + camera_x) < width/2 - 100:
+            camera_x += 5
+        if (game_state['me'].y + camera_y) > height/2 + 30:
+            camera_y -= 5
+        if (game_state['me'].y + camera_y) < height/2 - 100:
+            camera_y += 5
+        
+        display_characters(game_state=game_state)
         clock.tick(60)
         pygame.display.update()
 
