@@ -29,8 +29,9 @@ class ClientSocket:
         if port:
             self.port = port
             
-        # self.recv_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.send_socket.bind(("", 0))
+        host_name = socket.gethostname()
+        ip_address = socket.gethostbyname(host_name)
+        self.send_socket.bind((ip_address, 0))
         
         return self.connect_ack(name)
         
@@ -58,9 +59,6 @@ class ClientSocket:
         
     def send_data(self, move, game_state):
         name = game_state['me'].name
-        msg = json.dumps({"method": "send_player_update", "args": {"username": name, "input": move}})
-        msg = f"{len(msg.encode()):>16}{msg}"
-        self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
         if(move == "up"):
             game_state['me'].move_up()
         elif(move == "down"):
@@ -69,6 +67,9 @@ class ClientSocket:
             game_state['me'].move_left()
         elif(move == "right"):
             game_state['me'].move_right()
+        msg = json.dumps({"method": "send_player_update", "args": {"username": name, "x": game_state['me'].x, "y": game_state['me'].y}})
+        msg = f"{len(msg.encode()):>16}{msg}"
+        self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
         
         return None
     

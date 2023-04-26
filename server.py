@@ -1,10 +1,12 @@
 import socket, json, time, threading;
+import megalib
 
 class GameServer:
 
     def __init__(self, port_no):
         self.port_no = port_no;
         self.user_list = {};
+        self.buffer = {}
     
 
 
@@ -33,10 +35,15 @@ class GameServer:
                 #if(payload["args"]["username"] not in self.user_listAAAAA):
                 if(True):
                     # Do some authentication or something here! 
-                    self.user_list[payload["args"]["username"]] = {"status": "loading", "address": addr, "last_heard_from": time.time(), "position": {"x": 0, "y": 0}};
+                    new_user = megalib.Player(payload["args"]["username"])
+                    new_user.last_heard_from = time.time()
+                    new_user.x = 500
+                    new_user.y = 500
+                    new_user.status = "loaded"
+                    self.user_list[new_user.name] = new_user;
 
                     #response = {"method": "accept_connection", "args": None};
-                    response = {"x": 0, "y": 0};
+                    response = {"x": new_user.x, "y": new_user.y};
                 else:
                     response = {"method": "reject_connection", "args": None};
 
@@ -52,7 +59,7 @@ class GameServer:
                 print(payload["args"]);
                 self.update_player_position(payload["args"]);
 
-                response = self.user_list[payload["args"]["username"]]["position"];
+                response = {"x": self.user_list[payload["args"]["username"]].x, "y": self.user_list[payload["args"]["username"]].y};
 
                 self.sock.sendto(json.dumps(response).encode(), addr);
 
@@ -69,15 +76,9 @@ class GameServer:
     def update_player_position(self, args):
         try:
             username = args["username"];
-            input_val = args["input"];
-            if(input_val == "up"):
-                self.user_list[username]["position"]["y"] += 5;
-            elif(input_val == "down"):
-                self.user_list[username]["position"]["y"] -= 5;
-            elif(input_val == "left"):
-                self.user_list[username]["position"]["x"] -= 5;
-            elif(input_val == "right"):
-                self.user_list[username]["position"]["x"] += 5;
+            self.user_list[username].x = args["x"]
+            self.user_list[username].y = args["y"]
+            
             print(self.user_list[username]["position"]);
         except:
             pass;

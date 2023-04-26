@@ -6,6 +6,10 @@ class Player:
         self.O2_level = 100
         self.x = x
         self.y = y
+        self.ip_address = ""
+        self.port_no = 0
+        self.last_heard_from = 0
+        self.status = "not loaded"
         
     def O2_depletion(self, time):
         self.O2_level -= 1 * time//10
@@ -28,7 +32,7 @@ class Player:
         self.x += 5
         
     def move_left(self):
-        self.y -= 5
+        self.x -= 5
 
 class Map:
     def __init__(self):
