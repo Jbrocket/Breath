@@ -3,6 +3,7 @@ import sys
 import socket
 import json
 from threading import Thread
+import collections
 
 import megalib
 
@@ -22,7 +23,7 @@ class ClientSocket:
         self.send_socket = None
         # self.recv_socket = None
         
-    def connect(self, host=None, port=None, name="jbrock"):
+    def connect(self, host=None, port=None, name="jbrock", game_state: dict = None):
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if host:
             self.host = host
@@ -32,10 +33,9 @@ class ClientSocket:
         host_name = socket.gethostname()
         ip_address = socket.gethostbyname(host_name)
         self.send_socket.bind((ip_address, 0))
+        return self.connect_ack(name, game_state=game_state)
         
-        return self.connect_ack(name)
-        
-    def connect_ack(self, name):
+    def connect_ack(self, name, game_state: dict):
         msg = json.dumps({"method": "connect", "args": {"username": name, "recv_port": self.send_socket.getsockname()[1], "address": socket.gethostname()}})
         msg = f"{len(msg.encode()):>16}{msg}"
         self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
@@ -44,8 +44,17 @@ class ClientSocket:
         data = data[16:]
         data = json.loads(data.decode())
         if data["status"] == "reject":
-            return None
-        return megalib.Player(name=name, x=data['x'], y=data['y'])
+            return False
+        
+        game_state = {'me': "", 'tanks': collections.defaultdict(lambda: None), 'players': collections.defaultdict(lambda: None)}
+        
+        for user in data['players']:
+            if user == name:
+                game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
+            else:
+                game_state['players'][user] = (megalib.Player(name=user, x = data['players'][user]['x'], y = data['players'][user]['y']))
+                
+        return game_state
     
     def recv_mesg(self, game_state: dict):
         
@@ -53,9 +62,21 @@ class ClientSocket:
             try:
                 data, addr = self.send_socket.recvfrom(65536)
                 data = json.loads(data.decode())
-                game_state['me'].x, game_state['me'].y = data['x'], data['y']
+                if data['players']:
+                    print(data)
+                    for player, info in data['players'].items():
+                        if player == game_state['me'].name:
+                            game_state['me'].x, game_state['me'].y = info['x'], info['y']
+                            print("update me")
+                        else:
+                            if not game_state['players'][player]:
+                                print("new guy")
+                                game_state['players'][player] = megalib.Player(name=player, x=info['x'], y=info['x'])
+                            else:
+                                game_state['players'][player].x, game_state['players'][player].y = info['x'], info['y']
+                if data['tanks']:
+                    pass
             except (socket.timeout, KeyError, IndexError) as e:
-                print(data)
                 pass
         return
         
@@ -86,8 +107,8 @@ def display_characters(game_state: dict):
     screen.blit(player_image, (game_state['me'].x + camera_x, game_state['me'].y + camera_y))
     
     for player in game_state['players']:
-        screen.blit(smallfont.render(player.name, True, (100,100,100)), (player.y + camera_x + 25, player.y + camera_y - 10))
-        screen.blit(player_image, (player.x + camera_x, player.y + camera_y))
+        screen.blit(smallfont.render(game_state['players'][player].name, True, (100,100,100)), (game_state['players'][player].x + camera_x + 25, game_state['players'][player].y + camera_y - 10))
+        screen.blit(player_image, (game_state['players'][player].x + camera_x, game_state['players'][player].y + camera_y))
     
     return
         
@@ -116,10 +137,12 @@ def get_host_and_client():
             if ev.type == pygame.MOUSEBUTTONDOWN:
                 if not connected:
                     if width/2 <= mouse[0] <= width/2+140 and height/2 <= mouse[1] <= height/2+40: 
-                        me = client.connect(server, port, name=name)
-                        if not me:
+                        game_state = client.connect(server, port, name=name, game_state={})
+                        if not game_state:
                             continue
                         connected = True
+                        me = game_state['me']
+                        
             if ev.type == pygame.KEYDOWN:
                 key_pressed = pygame.key.get_pressed()
                 if ev.key == pygame.K_BACKSPACE:
@@ -181,16 +204,15 @@ def get_host_and_client():
         if connected:
             break
         
-    in_game_loop(client, me)
+    in_game_loop(client, me, game_state=game_state)
     
     
-def in_game_loop(client: ClientSocket, me: megalib.Player):
+def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
     global player_image
     global camera_x
     global camera_y
     global offset
         
-    game_state = {'me': me, 'tanks': [], 'players': []}
     game_state['background'] = pygame.image.load("among-us-map.jpg").convert_alpha()
     game_state['background'] = pygame.transform.rotozoom(game_state['background'], 0, 3.5)
     clock = pygame.time.Clock()
