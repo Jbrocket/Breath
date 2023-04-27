@@ -47,13 +47,17 @@ class ClientSocket:
             return False
         
         game_state = {'me': "", 'tanks': collections.defaultdict(lambda: None), 'players': collections.defaultdict(lambda: None)}
-        
+        print(data['tanks']); 
         for user in data['players']:
             if user == name:
                 game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
             else:
                 game_state['players'][user] = (megalib.Player(name=user, x = data['players'][user]['x'], y = data['players'][user]['y']))
-                
+
+        for tank in data['tanks']:
+           game_state['tanks'][tank]= megalib.O2Tank(x=data['tanks'][tank]['x'], y=data['tanks'][tank]['y']);
+
+
         return game_state
     
     def recv_mesg(self, game_state: dict):
@@ -71,7 +75,11 @@ class ClientSocket:
                         else:
                             game_state['players'][player].x, game_state['players'][player].y = info['x'], info['y']
             if data['tanks']:
-                pass
+                print('hey');
+                for tank, info in data['tanks'].items():
+                    if info['method'] == "delete":
+                        game_state['tanks'].pop(tank);
+                        print(game_state['tanks']);
             time.sleep(0.0083)
         return
         
@@ -97,14 +105,22 @@ def render_map(game_state: dict):
 
 def display_characters(game_state: dict):
     smallfont = pygame.font.SysFont('Corbel',35)
+
+
+    for tank in game_state['tanks']:
+        screen.blit(tank_image, (game_state['tanks'][tank].x+ camera_x, game_state['tanks'][tank].y+camera_y))
+
     ### ME
     screen.blit(smallfont.render(game_state['me'].name, True, (100,100,100)), (game_state['me'].x + camera_x + 25, game_state['me'].y + camera_y - 10))
     screen.blit(player_image, (game_state['me'].x + camera_x, game_state['me'].y + camera_y))
     
+
     for player in game_state['players']:
         screen.blit(smallfont.render(game_state['players'][player].name, True, (100,100,100)), (game_state['players'][player].x + camera_x + 25, game_state['players'][player].y + camera_y - 10))
         screen.blit(player_image, (game_state['players'][player].x + camera_x, game_state['players'][player].y + camera_y))
-    
+
+    #for tank in game_state['tanks']:
+
     return
         
 def get_host_and_client():
@@ -204,6 +220,7 @@ def get_host_and_client():
     
 def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
     global player_image
+    global tank_image
     global camera_x
     global camera_y
     global offset
@@ -216,6 +233,10 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
     # player_image = player_image.get_rect()
     
     player_image = pygame.transform.rotozoom(player_image, 0, 1/5)
+
+    tank_image = pygame.image.load("./src/oxygen.webp");
+    tank_image = pygame.transform.rotozoom(tank_image, 0, 1/5);
+
     mov_types = {"up": False, "down": False, "left": False, "right": False}
     
     t = Thread(target=client.recv_mesg, daemon=True, args=[game_state])
@@ -281,7 +302,6 @@ def main():
     screen = pygame.display.set_mode(res) 
     width = screen.get_width() 
     height = screen.get_height() 
-    
     get_host_and_client()
     
 if __name__ == "__main__":
