@@ -11,8 +11,13 @@ class GameServer:
         self.map_y = 2880; # /48 = 60
         self.map_x_offset = -470;
         self.map_y_offset = -325;
-        self.tank_list = megalib.O2Tanks();
-        self.tank_list.create_tanks(10);
+        #self.tank_list = megalib.O2Tanks();
+        #self.tank_list.create_tanks(10);
+        tankies = megalib.O2Tanks()
+        tankies.create_tanks(10);
+        self.tank_list = {};
+        for i in range(10):
+            self.tank_list[i] = {"x": tankies.O2_tanks[i].x, "y": tankies.O2_tanks[i].y};
 
     
 
@@ -65,8 +70,9 @@ class GameServer:
                         if not self.user_list[user]:
                             continue
                         response['players'][user] = {"status": self.user_list[user].status, "x": self.user_list[user].x, "y": self.user_list[user].y}
-                    for i in range(len(self.tank_list.O2_tanks)):
-                        response['tanks'][i] = {"x": self.tank_list.O2_tanks[i].x * 50 + self.map_x_offset, "y": self.tank_list.O2_tanks[i].y * 48 + self.map_y_offset};
+                    for i in range(len(self.tank_list)):
+                        #response['tanks'][i] = {"x": self.tank_list.O2_tanks[i].x * 50 + self.map_x_offset, "y": self.tank_list.O2_tanks[i].y * 48 + self.map_y_offset};
+                        response['tanks'][i] = {"x": self.tank_list[i]['x']*50 + self.map_x_offset, "y":self.tank_list[i]['y']*48 + self.map_y_offset};
                     self.user_list[new_user.name] = new_user
 
                     #response = {"method": "accept_connection", "args": None};
@@ -104,12 +110,17 @@ class GameServer:
         username = args["username"];
         self.user_list[username].x = args["x"]
         self.user_list[username].y = args["y"]
-        print(args['x'], args['y']);
-        print(self.tank_list.O2_tanks[0].x*50+self.map_x_offset, self.tank_list.O2_tanks[0].y*48 +self.map_y_offset);
+        #print(args['x'], args['y']);
+        #print(self.tank_list.O2_tanks[0].x*50+self.map_x_offset, self.tank_list.O2_tanks[0].y*48 +self.map_y_offset);
         # Check here for
-        for tank in self.tank_list.O2_tanks:
-            if(args["x"] > (tank.x*50+self.map_x_offset-50) and args["x"] < (tank.x*50+self.map_x_offset + 100) and args["y"] > (tank.y*48+self.map_y_offset-75) and args["y"] <(tank.y*48+self.map_y_offset + 75)):
-                print("we there boys");
+        for tank in self.tank_list:
+            if(args["x"] > (self.tank_list[tank]['x']*50+self.map_x_offset-50) and args["x"] < (self.tank_list[tank]['x']*50+self.map_x_offset + 100) and args["y"] > (self.tank_list[tank]['y']*48+self.map_y_offset-75) and args["y"] <(self.tank_list[tank]['y']*48+self.map_y_offset + 75)):
+                self.buffer['tanks'][tank] = {"method": "delete"};
+                print('got me');
+                self.tank_list.pop(tank); 
+                #print("OP!!", tank, self.tank_list.pop(tank));
+                break;
+            #print(tank);
         self.buffer["players"][username] =  {"x": self.user_list[username].x, "y": self.user_list[username].y}
 
 

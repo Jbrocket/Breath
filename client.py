@@ -75,8 +75,11 @@ class ClientSocket:
                         else:
                             game_state['players'][player].x, game_state['players'][player].y = info['x'], info['y']
             if data['tanks']:
-                #print(data['tanks']);
-                pass;
+                print('hey');
+                for tank, info in data['tanks'].items():
+                    if info['method'] == "delete":
+                        game_state['tanks'].pop(tank);
+                        print(game_state['tanks']);
             time.sleep(0.0083)
         return
         
