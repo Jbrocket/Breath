@@ -62,8 +62,8 @@ class O2TankGenerator:
         pass
         
     def generate(self):
-        x = random.randint(0, 50)
-        y = random.randint(0, 48)
+        x = random.randint(0, 99)
+        y = random.randint(0, 60)
         
         return O2Tank(x, y)
 
