@@ -14,6 +14,7 @@ global player_image
 global camera_x
 global camera_y
 global offset
+global player_dead_image
   
 class ClientSocket:
     
@@ -47,12 +48,13 @@ class ClientSocket:
             return False
         
         game_state = {'me': "", 'tanks': collections.defaultdict(lambda: None), 'players': collections.defaultdict(lambda: None)}
-        print(data['tanks']); 
+        # print(data['tanks']); 
         for user in data['players']:
             if user == name:
                 game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
             else:
                 game_state['players'][user] = (megalib.Player(name=user, x = data['players'][user]['x'], y = data['players'][user]['y']))
+                game_state['players'][user].dead = data['players'][user]['dead']
 
         for tank in data['tanks']:
            game_state['tanks'][tank]= megalib.O2Tank(x=data['tanks'][tank]['x'], y=data['tanks'][tank]['y']);
@@ -68,22 +70,26 @@ class ClientSocket:
             if data['players']:
                 for player, info in data['players'].items():
                     if player == game_state['me'].name:
-                        game_state['me'].x, game_state['me'].y = info['x'], info['y']
+                        game_state['me'].x, game_state['me'].y, game_state['me'].O2_level, game_state['me'].dead, game_state['me'].death_counter = info['x'], info['y'], info['O2'], info['dead'], info['score']
                     else:
                         if not game_state['players'][player]:
                             game_state['players'][player] = megalib.Player(name=player, x=info['x'], y=info['x'])
                         else:
-                            game_state['players'][player].x, game_state['players'][player].y = info['x'], info['y']
+                            game_state['players'][player].x, game_state['players'][player].y, game_state['players'][player].dead = info['x'], info['y'], info['dead']
             if data['tanks']:
-                print('hey');
+                # print('hey');
                 for tank, info in data['tanks'].items():
                     if info['method'] == "delete":
                         game_state['tanks'].pop(tank);
-                        print(game_state['tanks']);
             time.sleep(0.0083)
         return
         
     def send_data(self, move, game_state):
+        if move == "respawn":
+            msg = json.dumps({"method": "respawn", "args": {"username": game_state['me'].name, "x": game_state['me'].x, "y": game_state['me'].y}})
+            msg = f"{len(msg.encode()):>16}{msg}"
+            self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
+            return None
         name = game_state['me'].name
         if(move == "up"):
             game_state['me'].move_up()
@@ -93,6 +99,7 @@ class ClientSocket:
             game_state['me'].move_left()
         elif(move == "right"):
             game_state['me'].move_right()
+            
         msg = json.dumps({"method": "send_player_update", "args": {"username": name, "x": game_state['me'].x, "y": game_state['me'].y}})
         msg = f"{len(msg.encode()):>16}{msg}"
         self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
@@ -106,18 +113,33 @@ def render_map(game_state: dict):
 def display_characters(game_state: dict):
     smallfont = pygame.font.SysFont('Corbel',35)
 
+    game_state['me']: megalib.Player
 
     for tank in game_state['tanks']:
         screen.blit(tank_image, (game_state['tanks'][tank].x+ camera_x, game_state['tanks'][tank].y+camera_y))
 
     ### ME
-    screen.blit(smallfont.render(game_state['me'].name, True, (100,100,100)), (game_state['me'].x + camera_x + 25, game_state['me'].y + camera_y - 10))
-    screen.blit(player_image, (game_state['me'].x + camera_x, game_state['me'].y + camera_y))
+    if game_state['me'].dead:
+        screen.blit(game_state['wasted'], (width/9, height/7))
+        mouse = pygame.mouse.get_pos()
+        screen.blit(smallfont.render('respawn' , True , (255,255,255) )  , (width/2-70, 5*height/7)) 
+        if width/2 <= mouse[0] <= width/2+140 and 5*height/7 <= mouse[1] <= 5*height/7+100: 
+            pygame.draw.rect(screen,(170,170,170) ,[width/2-70,5*height/7,140,100]) 
+        else: 
+            pygame.draw.rect(screen,(100,100,100) ,[width/2-70,5*height/7,140,100]) 
+        screen.blit(smallfont.render('respawn' , True , (255,255,255) )  , (width/2-40, 5*height/7)) 
+    else:
+        screen.blit(player_image, (game_state['me'].x + camera_x, game_state['me'].y + camera_y))
+        screen.blit(smallfont.render(game_state['me'].name, True, (100,100,100)), (game_state['me'].x + camera_x + 25, game_state['me'].y + camera_y - 10))
+        pygame.draw.rect(screen, (50,205,50), (game_state['me'].x + camera_x, game_state['me'].y + camera_y - 25, game_state['me'].O2_level, 5))
     
 
     for player in game_state['players']:
         screen.blit(smallfont.render(game_state['players'][player].name, True, (100,100,100)), (game_state['players'][player].x + camera_x + 25, game_state['players'][player].y + camera_y - 10))
-        screen.blit(player_image, (game_state['players'][player].x + camera_x, game_state['players'][player].y + camera_y))
+        if game_state['players'][player].dead:
+            screen.blit(player_dead_image, (game_state['players'][player].x + camera_x, game_state['players'][player].y + camera_y))
+        else:
+            screen.blit(player_image, (game_state['players'][player].x + camera_x, game_state['players'][player].y + camera_y))
 
     #for tank in game_state['tanks']:
 
@@ -224,15 +246,20 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
     global camera_x
     global camera_y
     global offset
+    global player_dead_image
         
     game_state['background'] = pygame.image.load("./src/among-us-map.jpg").convert_alpha()
     game_state['background'] = pygame.transform.rotozoom(game_state['background'], 0, 3.5)
+    game_state['wasted'] = pygame.image.load("./src/wasted.png").convert_alpha()
+    game_state['wasted'] = pygame.transform.rotozoom(game_state['wasted'], 0, 1)
+    
     clock = pygame.time.Clock()
     player_image = pygame.image.load("./src/among_us.png").convert_alpha()
     player_image.set_colorkey((0, 0, 0))
     # player_image = player_image.get_rect()
     
     player_image = pygame.transform.rotozoom(player_image, 0, 1/5)
+    player_dead_image = pygame.transform.rotozoom(player_image, 90, 1)
 
     tank_image = pygame.image.load("./src/oxygen.webp");
     tank_image = pygame.transform.rotozoom(tank_image, 0, 1/5);
@@ -253,30 +280,37 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
         for ev in pygame.event.get(): 
             if ev.type == pygame.QUIT:
                 pygame.quit()
-            if ev.type == pygame.KEYDOWN:
-                if ev.unicode == "w":
-                    mov_types['down'] = True
-                elif ev.unicode == "a":
-                    mov_types['left'] = True
-                elif ev.unicode == "s":
-                    mov_types['up'] = True
-                elif ev.unicode == "d":
-                    mov_types['right'] = True
-            if ev.type == pygame.KEYUP:
-                if ev.unicode == "w":
-                    mov_types['down'] = False
-                elif ev.unicode == "a":
-                    mov_types['left'] = False
-                elif ev.unicode == "s":
-                    mov_types['up'] = False
-                elif ev.unicode == "d":
-                    mov_types['right'] = False
+            if not game_state['me'].dead:
+                if ev.type == pygame.KEYDOWN:
+                    if ev.unicode == "w":
+                        mov_types['down'] = True
+                    elif ev.unicode == "a":
+                        mov_types['left'] = True
+                    elif ev.unicode == "s":
+                        mov_types['up'] = True
+                    elif ev.unicode == "d":
+                        mov_types['right'] = True
+                if ev.type == pygame.KEYUP:
+                    if ev.unicode == "w":
+                        mov_types['down'] = False
+                    elif ev.unicode == "a":
+                        mov_types['left'] = False
+                    elif ev.unicode == "s":
+                        mov_types['up'] = False
+                    elif ev.unicode == "d":
+                        mov_types['right'] = False
+            else:
+                for mov in mov_types:
+                    mov_types[mov] = False
                     
+                mouse = pygame.mouse.get_pos()
+                if ev.type == pygame.MOUSEBUTTONDOWN:
+                    if width/2 <= mouse[0] <= width/2+140 and 5*height/7 <= mouse[1] <= 5*height/7+100: 
+                        client.send_data("respawn", game_state)
+                
         for mov in mov_types:
             if mov_types[mov]: 
                 client.send_data(mov, game_state)
-                
-                # client.recv_mesg(game_state=game_state)
         
         if (game_state['me'].x + camera_x) >  width/2 + 30:
             camera_x -= (game_state['me'].x + camera_x) - (width/2 + 30)

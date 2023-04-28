@@ -10,6 +10,8 @@ class Player:
         self.port_no = 0
         self.last_heard_from = 0
         self.status = "not loaded"
+        self.death_counter = 0
+        self.dead = False
         
     def O2_depletion(self, time):
         self.O2_level -= 1 * time//10
