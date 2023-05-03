@@ -48,7 +48,7 @@ class ClientSocket:
             return False
         
         game_state = {'me': "", 'tanks': collections.defaultdict(lambda: None), 'players': collections.defaultdict(lambda: None)}
-        # print(data['tanks']); 
+        
         for user in data['players']:
             if user == name:
                 game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
@@ -57,7 +57,7 @@ class ClientSocket:
                 game_state['players'][user].dead = data['players'][user]['dead']
 
         for tank in data['tanks']:
-           game_state['tanks'][tank]= megalib.O2Tank(x=data['tanks'][tank]['x'], y=data['tanks'][tank]['y']);
+           game_state['tanks'][tank] = megalib.O2Tank(x=data['tanks'][tank]['x'], y=data['tanks'][tank]['y']);
 
 
         return game_state
@@ -77,11 +77,10 @@ class ClientSocket:
                         else:
                             game_state['players'][player].x, game_state['players'][player].y, game_state['players'][player].dead = info['x'], info['y'], info['dead']
             if data['tanks']:
-                # print('hey');
-                for tank, info in data['tanks'].items():
-                    if info['method'] == "delete":
-                        game_state['tanks'].pop(tank);
-            time.sleep(0.0083)
+                game_state['tanks'] = {}
+                for tank in data['tanks']:
+                    game_state['tanks'][tank] = megalib.O2Tank(x=data['tanks'][tank]['x'], y=data['tanks'][tank]['y']);
+            time.sleep(0.00833)
         return
         
     def send_data(self, move, game_state):
@@ -106,6 +105,12 @@ class ClientSocket:
         
         return None
     
+    def disconnect(self, game_state):
+        msg = json.dumps({"method": "send_player_update", "args": {"username": game_state['me'].name}})
+        msg = f"{len(msg.encode()):>16}{msg}"
+        self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
+        
+    
 def render_map(game_state: dict):
     screen.blit(game_state['background'], (camera_x - width/2 - offset , camera_y - height/2 - offset))
     return
@@ -116,7 +121,7 @@ def display_characters(game_state: dict):
     game_state['me']: megalib.Player
 
     for tank in game_state['tanks']:
-        screen.blit(tank_image, (game_state['tanks'][tank].x+ camera_x, game_state['tanks'][tank].y+camera_y))
+        screen.blit(tank_image, (game_state['tanks'][tank].x + camera_x, game_state['tanks'][tank].y+camera_y))
 
     ### ME
     if game_state['me'].dead:
@@ -279,6 +284,7 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
         
         for ev in pygame.event.get(): 
             if ev.type == pygame.QUIT:
+                client.disconnect()
                 pygame.quit()
             if not game_state['me'].dead:
                 if ev.type == pygame.KEYDOWN:

@@ -1,4 +1,4 @@
-import socket, json, time, threading, collections;
+import socket, json, time, threading, collections, os, copy;
 from src import megalib
 
 class GameServer:
@@ -19,35 +19,47 @@ class GameServer:
         for i in range(10):
             self.tank_list[i] = {"x": tankies.O2_tanks[i].x, "y": tankies.O2_tanks[i].y};
 
-    
+    def check_point(self):
+        while True:
+            players = {}
+            tanks = {}
+            
+            for player in self.user_list:
+                players[player] = {'x': self.user_list[player].x, 'y': self.user_list[player].y, 'score': self.user_list[player].death_counter, 'dead': self.user_list[player].dead, 'O2': self.user_list[player].O2_level, 'ip_address': self.user_list[player].ip_address}
+            for tank in self.tank_list:
+                tanks[tank] = {'x': self.tank_list[tank]['x'], 'y': self.tank_list[tank]['y']}
+            
+            shadow = open('shadow.ckpt', 'w')
+            shadow.write(json.dumps({'players': players, 'tanks': tanks}))
+            shadow.flush()
+            os.fsync(shadow)
+            
+            try:
+                os.rename('json.ckpt', 'delete.me')
+                os.remove('delete.me')
+            except FileNotFoundError:
+                pass
+            
+            shadow.close()
+            os.rename('shadow.ckpt', 'json.ckpt')
+            time.sleep(1)
+        return
 
     def update_players(self):
         while True:
             user: megalib.Player
+            for tank in self.buffer["tanks"]:
+                self.buffer["tanks"][tank]['x'] = self.buffer["tanks"][tank]['x'] * 50 + self.map_x_offset
+                self.buffer["tanks"][tank]['y'] = self.buffer["tanks"][tank]['y'] * 48 + self.map_y_offset
             if self.buffer["players"] or self.buffer["tanks"]:
-                for user in self.user_list:
+                users = self.user_list.copy()
+                for user in users:
                     self.sock.sendto(f"{json.dumps(self.buffer)}".encode(), self.user_list[user].ip_address)
                     pass
                 self.buffer = {"players": {}, "tanks": {}}
-            time.sleep(0.0083)
+            time.sleep(0.00833)
         
         return
-    
-    # def new_tanks(self):
-    #     while True:
-    #         for tank in self.tank_list:
-    #             self.buffer['tanks'][tank] = {"method": "delete"};
-    #         self.tank_list = {}
-    #         tankies = megalib.O2Tanks()
-            
-    #         num: int
-    #         num = 50
-    #         tankies.create_tanks(num);
-    #         for i in range(num):
-    #             self.tank_list[i] = {"x": tankies.O2_tanks[i].x, "y": tankies.O2_tanks[i].y};
-    #         for tank in self.tank_list:
-    #             self.buffer['tanks'][tank]{"x": self.tank_list[tank]['x']*50 + self.map_x_offset, "y":self.tank_list[tank]['y']*48 + self.map_y_offset}
-    #         time.sleep(10)
     
     def lower_oxygen(self):
         while True:
@@ -61,7 +73,36 @@ class GameServer:
             
             time.sleep(1)
 
+    def get_prev_state(self):
+        if os.path.isfile('json.ckpt') and os.path.isfile('shadow.ckpt'):
+            os.remove('shadow.ckpt')
+        elif os.path.isfile('shadow.ckpt') and not os.path.isfile('json.ckpt'):
+            os.rename('shadow.ckpt', 'json.ckpt')
+        elif os.path.isfile('json.ckpt'):
+            pass
+        else:
+            return
+        f = open('json.ckpt', 'r')
+        data = json.load(f)
+        
+        for player in data['players']:
+            self.user_list[player] = megalib.Player(player)
+            self.user_list[player].x = data['players'][player]['x']
+            self.user_list[player].y = data['players'][player]['y']
+            self.user_list[player].death_counter = data['players'][player]['score']
+            self.user_list[player].dead = data['players'][player]['dead']
+            self.user_list[player].O2_level = data['players'][player]['O2']
+            self.user_list[player].ip_address = tuple(data['players'][player]['ip_address'])
+        
+        self.tank_list = {}
+        for tank in data['tanks']:
+            self.tank_list[tank] = {'x': data['tanks'][tank]['x'], 'y': data['tanks'][tank]['y']}
+        
+        return
+    
     def start_server(self):
+        self.get_prev_state()
+
 
         host_name = socket.gethostname()
         ip_address = socket.gethostbyname(host_name)
@@ -73,8 +114,10 @@ class GameServer:
         # Begin timer thread now
         t = threading.Thread(target=self.update_players, daemon=True)
         p = threading.Thread(target=self.lower_oxygen, daemon=True)
-        # c = threading.Thread(target=self.new_tanks, daemon=True)
-        # c.start()
+        c = threading.Thread(target=self.check_point, daemon=True)
+        z = threading.Thread(target=self.new_tanks, daemon=True)
+        z.start()
+        c.start()
         p.start()
         t.start()
         
@@ -118,11 +161,8 @@ class GameServer:
 
                 self.sock.sendto(f"{len(json.dumps(response)):>16}{json.dumps(response)}".encode(), addr);
 
-            elif(payload["method"] == "initialized"):
-                pass;
-
             elif(payload["method"] == "disconnect"):
-                pass;
+                self.delete_player(payload["args"], addr)
 
             elif(payload["method"] == "send_player_update"):
                 self.update_player_position(payload["args"], addr);
@@ -130,16 +170,29 @@ class GameServer:
             elif(payload["method"] == "respawn"):
                 self.update_player_position(payload["args"], addr, respawn=True)
 
-                # response = {payload["args"]["username"]: {"x": self.user_list[payload["args"]["username"]].x, "y": self.user_list[payload["args"]["username"]].y}};
-
-                # self.sock.sendto(json.dumps(response).encode(), addr);
-
             else:
                 print("error", payload);
             
 
 
+    def delete_player(self, args):
+        user = self.user_list[args["username"]]
+        self.user_list.pop(args["username"])
+        self.sock.sendto(f"{json.dumps({'method': 'acknowledge'})}".encode(), self.user_list[user.name].ip_address)
+        return
 
+    def new_tanks(self):
+        tankies = megalib.O2Tanks()
+        while True:
+            self.tank_list = {};
+            tankies.create_tanks(10);
+            for i in range(10):
+                self.tank_list[i] = {"x": tankies.O2_tanks[i].x, "y": tankies.O2_tanks[i].y};
+                
+            for i in range(10):
+                self.buffer["tanks"][i] = {"x": tankies.O2_tanks[i].x, "y": tankies.O2_tanks[i].y}
+            time.sleep(15)
+        return
 
     def update_player_position(self, args, addr, respawn=False):
         username = args["username"];
@@ -155,16 +208,16 @@ class GameServer:
         else:
             self.user_list[username].x = args["x"]
             self.user_list[username].y = args["y"]
-        #print(args['x'], args['y']);
-        #print(self.tank_list.O2_tanks[0].x*50+self.map_x_offset, self.tank_list.O2_tanks[0].y*48 +self.map_y_offset);
+
         # Check here for
         for tank in self.tank_list:
             if(args["x"] > (self.tank_list[tank]['x']*50+self.map_x_offset-50) and args["x"] < (self.tank_list[tank]['x']*50+self.map_x_offset + 100) and args["y"] > (self.tank_list[tank]['y']*48+self.map_y_offset-75) and args["y"] <(self.tank_list[tank]['y']*48+self.map_y_offset + 75)):
-                self.buffer['tanks'][tank] = {"method": "delete"};
+                # self.buffer['tanks'][tank] = {"method": "delete"};
                 # print('got me');
+                
                 self.tank_list.pop(tank);
+                self.buffer["tanks"] = copy.deepcopy(self.tank_list)
                 self.user_list[username].O2_level = self.user_list[username].O2_level + 20 if self.user_list[username].O2_level + 20 < 100 else 100
-                #print("OP!!", tank, self.tank_list.pop(tank));
                 break;
             #print(tank);
         self.buffer["players"][username] =  {"x": self.user_list[username].x, "y": self.user_list[username].y, "O2": self.user_list[username].O2_level, "dead": self.user_list[username].dead, "score": self.user_list[username].death_counter}
