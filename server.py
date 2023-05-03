@@ -54,8 +54,14 @@ class GameServer:
             if self.buffer["players"] or self.buffer["tanks"]:
                 users = self.user_list.copy()
                 for user in users:
+                    if time.time() - self.user_list[user].last_heard_from > 20:
+                        self.user_list[user].status = "offline"
+                        self.buffer['players'][user] = {"status": "offline"}
+                    else:
+                        self.user_list[user].status = "online"
+                for user in users:
                     self.sock.sendto(f"{json.dumps(self.buffer)}".encode(), self.user_list[user].ip_address)
-                    pass
+
                 self.buffer = {"players": {}, "tanks": {}}
             time.sleep(0.00833)
         
@@ -65,6 +71,8 @@ class GameServer:
         while True:
             
             for username in self.user_list:
+                if self.user_list[username].status == "offline":
+                    continue
                 self.user_list[username].O2_level = self.user_list[username].O2_level - 5 if self.user_list[username].O2_level - 5 > 0 else 0
                 if self.user_list[username].O2_level == 0:
                     self.user_list[username].dead = True
@@ -85,6 +93,7 @@ class GameServer:
         f = open('json.ckpt', 'r')
         data = json.load(f)
         
+        self.user_list: dict[str, megalib.Player]
         for player in data['players']:
             self.user_list[player] = megalib.Player(player)
             self.user_list[player].x = data['players'][player]['x']
@@ -93,7 +102,7 @@ class GameServer:
             self.user_list[player].dead = data['players'][player]['dead']
             self.user_list[player].O2_level = data['players'][player]['O2']
             self.user_list[player].ip_address = tuple(data['players'][player]['ip_address'])
-        
+            self.user_list[player].status = "offline"
         self.tank_list = {}
         for tank in data['tanks']:
             self.tank_list[tank] = {'x': data['tanks'][tank]['x'], 'y': data['tanks'][tank]['y']}
@@ -126,8 +135,6 @@ class GameServer:
             size = int(msg.decode()[0:16]);
             payload = json.loads(msg.decode()[16:(16+size)]);
 
-            # Probably check for proper formatting here or something
-
 
             if(payload["method"] == "connect"):
                 response = None;
@@ -139,23 +146,38 @@ class GameServer:
                     new_user.y = 365
                     new_user.status = "loaded"
                     new_user.ip_address = addr
+                    new_user.last_heard_from = time.time()
                     response = {"status": "accept", "players": {}, "tanks": {}}
 
+                    user_list = self.user_list.copy()
+                    tank_list = self.tank_list.copy()
                     for user in self.user_list:
                         if not self.user_list[user]:
                             continue
                         response['players'][user] = {"status": self.user_list[user].status, "x": self.user_list[user].x, "y": self.user_list[user].y, "dead": self.user_list[user].dead }
-                    for tank in self.tank_list:
-                        #response['tanks'][i] = {"x": self.tank_list.O2_tanks[i].x * 50 + self.map_x_offset, "y": self.tank_list.O2_tanks[i].y * 48 + self.map_y_offset};
+                    for tank in tank_list:
                         response['tanks'][tank] = {"x": self.tank_list[tank]['x']*50 + self.map_x_offset, "y":self.tank_list[tank]['y']*48 + self.map_y_offset};
                     self.user_list[new_user.name] = new_user
 
-                    #response = {"method": "accept_connection", "args": None};
                     response['players'][new_user.name] = {"status": "accept", "x": new_user.x, "y": new_user.y}
                     response["status"] = "accept"
-                    # print(response);
                     self.buffer['players'][new_user.name] = {"x": new_user.x, "y": new_user.y, "O2": 100, "score": self.user_list[new_user.name].death_counter, "dead": self.user_list[new_user.name].dead}
+                
+                elif self.user_list[payload["args"]["username"]].status == "offline":
+                    self.user_list[payload["args"]["username"]].status = "online"
+                    self.user_list[payload["args"]["username"]].ip_address = addr
+                    self.user_list[payload["args"]["username"]].last_heard_from = time.time()
+                    user_list = self.user_list.copy()
+                    tank_list = self.tank_list.copy()
+                    response = {"status": "accept", "players": {}, "tanks": {}}
                     
+                    for user in user_list:
+                        if not self.user_list[user]:
+                            continue
+                        response['players'][user] = {"status": self.user_list[user].status, "x": self.user_list[user].x, "y": self.user_list[user].y, "dead": self.user_list[user].dead, "O2": self.user_list[user].O2_level }
+                    for tank in tank_list:
+                        response['tanks'][tank] = {"x": self.tank_list[tank]['x']*50 + self.map_x_offset, "y":self.tank_list[tank]['y']*48 + self.map_y_offset};
+                        
                 else:
                     response = {"status": "reject", "args": {"reason": "duplicate name"}};
 
@@ -175,10 +197,10 @@ class GameServer:
             
 
 
-    def delete_player(self, args):
+    def delete_player(self, args, addr):
         user = self.user_list[args["username"]]
-        self.user_list.pop(args["username"])
-        self.sock.sendto(f"{json.dumps({'method': 'acknowledge'})}".encode(), self.user_list[user.name].ip_address)
+        user.status = "offline"
+        self.buffer['players'][user.name] = {'status': 'offline'}
         return
 
     def new_tanks(self):
@@ -196,6 +218,7 @@ class GameServer:
 
     def update_player_position(self, args, addr, respawn=False):
         username = args["username"];
+
         if not self.user_list[username]:
             self.user_list[username] = megalib.Player(name=username)
             self.user_list[username].ip_address = addr
@@ -205,21 +228,20 @@ class GameServer:
             self.user_list[username].O2_level = 100
             self.user_list[username].death_counter += 1
             self.user_list[username].dead = False
+            self.user_list[username].status = "online"
         else:
             self.user_list[username].x = args["x"]
             self.user_list[username].y = args["y"]
 
+        self.user_list[username].last_heard_from = time.time()
         # Check here for
         for tank in self.tank_list:
             if(args["x"] > (self.tank_list[tank]['x']*50+self.map_x_offset-50) and args["x"] < (self.tank_list[tank]['x']*50+self.map_x_offset + 100) and args["y"] > (self.tank_list[tank]['y']*48+self.map_y_offset-75) and args["y"] <(self.tank_list[tank]['y']*48+self.map_y_offset + 75)):
-                # self.buffer['tanks'][tank] = {"method": "delete"};
-                # print('got me');
                 
                 self.tank_list.pop(tank);
                 self.buffer["tanks"] = copy.deepcopy(self.tank_list)
                 self.user_list[username].O2_level = self.user_list[username].O2_level + 20 if self.user_list[username].O2_level + 20 < 100 else 100
                 break;
-            #print(tank);
         self.buffer["players"][username] =  {"x": self.user_list[username].x, "y": self.user_list[username].y, "O2": self.user_list[username].O2_level, "dead": self.user_list[username].dead, "score": self.user_list[username].death_counter}
 
 

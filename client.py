@@ -51,7 +51,12 @@ class ClientSocket:
         
         for user in data['players']:
             if user == name:
-                game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
+                try:
+                    game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
+                    game_state['me'].O2_level = data['players'][user]['O2']
+                    game_state['me'].dead = data['players'][user]['dead']
+                except:
+                    game_state['me'] = megalib.Player(name=name, x=data['players'][user]['x'], y=data['players'][user]['y'])
             else:
                 game_state['players'][user] = (megalib.Player(name=user, x = data['players'][user]['x'], y = data['players'][user]['y']))
                 game_state['players'][user].dead = data['players'][user]['dead']
@@ -67,15 +72,26 @@ class ClientSocket:
         while True:
             data, addr = self.send_socket.recvfrom(65536)
             data = json.loads(data.decode())
+            
             if data['players']:
                 for player, info in data['players'].items():
-                    if player == game_state['me'].name:
-                        game_state['me'].x, game_state['me'].y, game_state['me'].O2_level, game_state['me'].dead, game_state['me'].death_counter = info['x'], info['y'], info['O2'], info['dead'], info['score']
-                    else:
-                        if not game_state['players'][player]:
-                            game_state['players'][player] = megalib.Player(name=player, x=info['x'], y=info['x'])
+                    try:
+                        if info['status'] == "offline":
+                            if player != game_state['me'].name:
+                                 game_state['players'].pop(player)
+                    except KeyError:
+                        pass
+                    try:
+                        if player == game_state['me'].name:
+                            game_state['me'].x, game_state['me'].y, game_state['me'].O2_level, game_state['me'].dead, game_state['me'].death_counter = info['x'], info['y'], info['O2'], info['dead'], info['score']
                         else:
-                            game_state['players'][player].x, game_state['players'][player].y, game_state['players'][player].dead = info['x'], info['y'], info['dead']
+                            if not game_state['players'][player]:
+                                game_state['players'][player] = megalib.Player(name=player, x=info['x'], y=info['x'])
+                            else:
+                                game_state['players'][player].x, game_state['players'][player].y, game_state['players'][player].dead = info['x'], info['y'], info['dead']
+                    except KeyError:
+                        pass
+                    
             if data['tanks']:
                 game_state['tanks'] = {}
                 for tank in data['tanks']:
@@ -106,9 +122,10 @@ class ClientSocket:
         return None
     
     def disconnect(self, game_state):
-        msg = json.dumps({"method": "send_player_update", "args": {"username": game_state['me'].name}})
+        msg = json.dumps({"method": "disconnect", "args": {"username": game_state['me'].name}})
         msg = f"{len(msg.encode()):>16}{msg}"
         self.send_socket.sendto(msg.encode(), (self.host, int(self.port)))
+        game_state['disconnect'] = True
         
     
 def render_map(game_state: dict):
@@ -140,6 +157,8 @@ def display_characters(game_state: dict):
     
 
     for player in game_state['players']:
+        if not game_state['players'][player]:
+            continue
         screen.blit(smallfont.render(game_state['players'][player].name, True, (100,100,100)), (game_state['players'][player].x + camera_x + 25, game_state['players'][player].y + camera_y - 10))
         if game_state['players'][player].dead:
             screen.blit(player_dead_image, (game_state['players'][player].x + camera_x, game_state['players'][player].y + camera_y))
@@ -257,6 +276,7 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
     game_state['background'] = pygame.transform.rotozoom(game_state['background'], 0, 3.5)
     game_state['wasted'] = pygame.image.load("./src/wasted.png").convert_alpha()
     game_state['wasted'] = pygame.transform.rotozoom(game_state['wasted'], 0, 1)
+    game_state['disconnect'] = False
     
     clock = pygame.time.Clock()
     player_image = pygame.image.load("./src/among_us.png").convert_alpha()
@@ -282,10 +302,11 @@ def in_game_loop(client: ClientSocket, me: megalib.Player, game_state: dict):
         screen.fill((255,255,255))
         render_map(game_state)
         
+        if game_state['disconnect']:
+            pygame.quit()
         for ev in pygame.event.get(): 
             if ev.type == pygame.QUIT:
-                client.disconnect()
-                pygame.quit()
+                client.disconnect(game_state)
             if not game_state['me'].dead:
                 if ev.type == pygame.KEYDOWN:
                     if ev.unicode == "w":

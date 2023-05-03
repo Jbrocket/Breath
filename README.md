@@ -26,7 +26,6 @@ python3 client.py
 
 This will open (if successfully installed) a pygame window.
 From here, you need to correctly input the IP, port, and 
-whatever username you want (if the username is taken, you
-won't be let into the server). 
+whatever username you want. 
 
 NOTE: USE THE ARROW KEYS TO CHANGE WHAT FORM YOU'RE TYPING TO
