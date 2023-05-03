@@ -200,6 +200,7 @@ class GameServer:
     def delete_player(self, args, addr):
         user = self.user_list[args["username"]]
         user.status = "offline"
+        user.last_heard_from = 0
         self.buffer['players'][user.name] = {'status': 'offline'}
         return
 
