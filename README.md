@@ -1,6 +1,5 @@
 # Purpose
-This repository is made for creating a LAN multiplayer game for a 
-distributed systems project
+This repository was made to hold a LAN multiplayer game
 
 # Dependencies
 Look at requirements.txt for dependencies to download before running. The server itself only uses 
