@@ -1,6 +1,9 @@
 # Purpose
 This repository was made to hold a LAN multiplayer game
 
+# Demonstration
+https://www.reddit.com/r/pygame/comments/131t90l/presented_this_in_my_distributed_systems_class/
+
 # Dependencies
 Look at requirements.txt for dependencies to download before running. The server itself only uses 
 base python3 libraries, but the client requires extra packages.
