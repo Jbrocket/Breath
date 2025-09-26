@@ -2,7 +2,7 @@
 This repository was made to hold a LAN multiplayer game
 
 # Demonstration
-https://www.reddit.com/r/pygame/comments/131t90l/presented_this_in_my_distributed_systems_class/
+https://architectureicons1.blob.core.windows.net/icons/m2-res_720p.mp4
 
 # Dependencies
 Look at requirements.txt for dependencies to download before running. The server itself only uses 
